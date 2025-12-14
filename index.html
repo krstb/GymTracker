@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fitness-Studio-Tracker (Lokal)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        'primary-green': '#10b981', // Emerald 500
+                        'secondary-gray': '#e5e7eb', // Gray 200
+                        'dark-bg': '#1f2937', // Gray 800
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Allgemeine Stile für die App-Oberfläche */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            color: #1f2937;
+        }
+
+        /* Stil für die Modals */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+        }
+
+        .modal-content {
+            animation: slideIn 0.3s ease-out forwards;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen antialiased">
+
+    <div class="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8">
+
+        <header class="mb-6 p-4 bg-white rounded-xl shadow-lg">
+            <h1 class="text-3xl font-bold text-primary-green">7Fit Gym Tracker</h1>
+        </header>
+
+        <div id="equipmentList" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-10">
+            </div>
+
+        <section id="doneEquipmentSection" class="mt-8 hidden">
+            <h2 id="doneTitle" class="text-2xl font-bold text-gray-700 mb-4 border-b-4 border-primary-green/50 pb-2">Erledigte Geräte (0)</h2>
+            <div id="doneEquipmentList" class="space-y-3">
+                </div>
+        </section>
+
+        <div class="mt-10 pt-6 border-t border-gray-300 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            
+            <button id="addEquipmentBtn" onclick="addEquipment()"
+                    class="bg-primary-green hover:bg-emerald-600 text-white font-bold py-3 px-4 rounded-lg transition duration-200 shadow-lg shadow-primary-green/50">
+                Gerät hinzufügen
+            </button>
+            
+            <button id="exportCsvBtn" onclick="exportToCsv()"
+                    class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md">
+                CSV Export
+            </button>
+
+            <input type="file" id="importCsvInput" accept=".csv" class="hidden" onchange="importFromCsv(event)">
+            <button id="importCsvBtn" onclick="document.getElementById('importCsvInput').click()"
+                    class="bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md">
+                CSV Import
+            </button>
+
+            <button id="resetAllBtn" onclick="handleResetConfirmation()"
+                    class="bg-red-500 hover:bg-red-600 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md">
+                Reset
+            </button>
+            
+        </div>
+        
+    </div>
+
+    <div id="editModal" class="modal-overlay hidden">
+        <div class="modal-content bg-white p-6 rounded-xl shadow-2xl w-11/12 max-w-md">
+            <h2 id="modalTitle" class="text-2xl font-bold mb-4 text-primary-green">Gerät bearbeiten</h2>
+
+            <div class="mb-4">
+                <label for="nameInput" class="block text-gray-700 font-medium mb-1">Gerätenummer & Name</label>
+                <input type="text" id="nameInput"
+                       class="w-full p-3 border border-gray-300 rounded-lg focus:ring-primary-green focus:border-primary-green transition"
+                       placeholder="z.B. 01 - Brustpresse">
+            </div>
+
+            <div class="mb-4">
+                <label for="weightInput" class="block text-gray-700 font-medium mb-1">Gewicht (kg)</label>
+                <input type="number" id="weightInput"
+                       class="w-full p-3 border border-gray-300 rounded-lg focus:ring-primary-green focus:border-primary-green transition"
+                       placeholder="z.b. 45">
+            </div>
+
+            <div class="mb-6">
+                <label for="settingsInput" class="block text-gray-700 font-medium mb-1">Geräte-Einstellungen</label>
+                <input type="text" id="settingsInput"
+                       class="w-full p-3 border border-gray-300 rounded-lg focus:ring-primary-green focus:border-primary-green transition"
+                       placeholder="z.B. Sitzhöhe 4, Pin 5">
+            </div>
+
+            <div class="flex justify-between gap-3">
+                <button id="deleteBtn" onclick="handleDeleteConfirmation()"
+                        class="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold py-3 rounded-lg transition duration-200">
+                    Löschen
+                </button>
+                <button onclick="closeEditModal()"
+                        class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-3 rounded-lg transition duration-200">
+                    Abbrechen
+                </button>
+                <button id="saveChangesBtn" onclick="saveChanges()"
+                        class="flex-1 bg-primary-green hover:bg-emerald-600 text-white font-semibold py-3 rounded-lg transition duration-200 shadow-lg shadow-primary-green/50">
+                    Speichern
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="customMessageModal" class="modal-overlay hidden">
+        <div class="modal-content bg-white p-6 rounded-xl shadow-2xl w-11/12 max-w-sm">
+            <h3 id="messageModalTitle" class="text-xl font-bold mb-3 text-gray-800">Nachricht</h3>
+            <p id="messageModalText" class="text-gray-700 mb-6"></p>
+            <div id="messageModalActions" class="flex justify-end gap-3">
+                </div>
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        
+        // --- Globale Variablen ---
+        let equipmentData = [];
+        let selectedEquipmentId = null;
+        const LOCAL_STORAGE_KEY = 'gymTrackerEquipment'; // Schlüssel für LocalStorage
+        let pendingConfirmAction = null; // Speichert die Funktion für die Bestätigung
+
+        // --- Datenstruktur ---
+        // Gibt ein leeres Array zurück, um initial keine Geräte anzuzeigen
+        function createInitialData() {
+            return [];
+        }
+        
+        // Hilfsfunktion: Ermittelt die nächste freie eindeutige ID
+        function getNextId() {
+            const maxId = equipmentData.reduce((max, item) => Math.max(max, item.id), 0);
+            return maxId + 1;
+        }
+
+        // Funktion zum Sortieren der Daten
+        // Sortiert primär nach Gerätenamen alphabetisch, sekundär nach ID
+        function sortEquipmentData(data) {
+            const sorted = [...data].sort((a, b) => {
+                // Primär nach Namen (alphabetisch) sortieren
+                const nameA = a.name.toLowerCase();
+                const nameB = b.name.toLowerCase();
+
+                if (nameA < nameB) return -1;
+                if (nameA > nameB) return 1;
+
+                // Sekundär nach ID sortieren, falls Namen gleich sind
+                return a.id - b.id;
+            });
+            return sorted;
+        }
+
+        // --- UI Rendering ---
+        function renderEquipment() {
+            const listContainer = document.getElementById('equipmentList');
+            const doneListContainer = document.getElementById('doneEquipmentList');
+            const doneTitle = document.getElementById('doneTitle');
+
+            if (!listContainer || !doneListContainer || !doneTitle) return;
+
+            // 1. Daten trennen
+            const todoEquipment = equipmentData.filter(item => !item.done);
+            const doneEquipment = equipmentData.filter(item => item.done);
+
+            // 2. Sortiere die offenen Geräte
+            const sortedTodoData = sortEquipmentData(todoEquipment);
+
+            // 3. Render die offenen Geräte (TODO-Liste)
+            listContainer.innerHTML = sortedTodoData.map(item => `
+                <div class="group bg-white p-4 rounded-xl shadow-lg border-l-4 border-gray-200 transition duration-300 transform hover:scale-[1.02] cursor-default">
+                    <div class="flex justify-between items-start mb-3">
+                        
+                        <h2 class="text-xl font-extrabold text-gray-800 cursor-pointer hover:text-blue-600 transition" 
+                            onclick="window.openEditModal(${item.id})"
+                            title="Details bearbeiten">
+                            ${item.name}
+                        </h2>
+                        
+                        <button onclick="window.toggleDone(${item.id})"
+                                class="bg-secondary-gray hover:bg-primary-green text-gray-600 w-12 h-12 rounded-full flex items-center justify-center transition duration-200 shadow-lg group-hover:bg-primary-green group-hover:text-white"
+                                title="Als erledigt markieren">
+                            <span class="font-bold text-lg">Los</span>
+                        </button>
+                    </div>
+                    
+                    <div class="text-sm space-y-1 mb-3">
+                        <p class="text-gray-600 flex items-center">
+                            <span class="font-semibold w-24 ${item.weight > 0 ? 'text-green-600 font-bold' : ''}">Gewicht:</span> 
+                            <span class="text-gray-900 font-medium">${item.weight || 0} kg</span>
+                        </p>
+                        <p class="text-gray-600 flex items-center">
+                            <span class="font-semibold w-24 ${item.settings.trim() ? 'text-blue-600' : ''}">Einst.:</span> 
+                            <span class="text-gray-900 truncate ${item.settings.trim() ? 'font-bold' : ''}">${item.settings || 'Nicht gesetzt'}</span>
+                        </p>
+                    </div>
+                    
+                </div>
+            `).join('');
+            
+            // 4. Render die erledigten Geräte (DONE-Liste)
+            doneTitle.textContent = `Erledigte Geräte (${doneEquipment.length})`;
+            
+            // Erledigte Geräte werden auch nach dem neuen Kriterium sortiert
+            const sortedDoneData = sortEquipmentData(doneEquipment);
+
+            doneListContainer.innerHTML = sortedDoneData.map(item => `
+                <div class="flex justify-between items-center p-3 bg-white rounded-lg opacity-90 border border-primary-green/50 shadow-sm hover:shadow-md transition">
+                    <div class="flex-1 min-w-0 flex items-center">
+                        <span class="text-base text-gray-700 truncate font-semibold">${item.name}</span>
+                    </div>
+                    
+                    <div class="text-right ml-4">
+                        <span class="text-base font-bold text-gray-600">${item.weight || 0} kg</span>
+                    </div>
+
+                    <button onclick="window.toggleDone(${item.id})"
+                            class="ml-3 text-sm text-red-500 hover:text-red-700 font-semibold transition py-1 px-2 rounded-lg bg-red-100 hover:bg-red-200"
+                            title="Zurück zur Todo-Liste setzen">
+                        Undo
+                    </button>
+                </div>
+            `).join('');
+            
+            // Verstecke die Sektion, wenn keine Geräte erledigt sind
+            document.getElementById('doneEquipmentSection').classList.toggle('hidden', doneEquipment.length === 0);
+        }
+        
+        // --- Custom Alert/Confirm Modal Funktionen ---
+        
+        /**
+         * Zeigt ein benutzerdefiniertes Alert-Modal an.
+         * @param {string} title Der Titel der Nachricht.
+         * @param {string} text Der Haupttext der Nachricht.
+         */
+        function showCustomAlert(title, text) {
+            const modal = document.getElementById('customMessageModal');
+            document.getElementById('messageModalTitle').textContent = title;
+            document.getElementById('messageModalText').textContent = text;
+            
+            const actions = document.getElementById('messageModalActions');
+            actions.innerHTML = `
+                <button onclick="closeCustomMessageModal()"
+                        class="bg-primary-green hover:bg-emerald-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-200">
+                    OK
+                </button>
+            `;
+            modal.classList.remove('hidden');
+        }
+
+        /**
+         * Zeigt ein benutzerdefiniertes Bestätigungs-Modal (Confirm) an.
+         * @param {string} title Der Titel der Bestätigung.
+         * @param {string} text Der Haupttext der Bestätigungsfrage.
+         * @param {function} onConfirm Die Funktion, die bei Bestätigung ausgeführt wird.
+         * @param {string} confirmText Text für den Bestätigungsbutton.
+         */
+        function showCustomConfirm(title, text, onConfirm, confirmText = 'Bestätigen') {
+            const modal = document.getElementById('customMessageModal');
+            document.getElementById('messageModalTitle').textContent = title;
+            document.getElementById('messageModalText').textContent = text;
+            
+            pendingConfirmAction = onConfirm; // Speichere die Callback-Funktion
+
+            const actions = document.getElementById('messageModalActions');
+            actions.innerHTML = `
+                <button onclick="closeCustomMessageModal()"
+                        class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-lg transition duration-200">
+                    Abbrechen
+                </button>
+                <button onclick="executeConfirmAction()"
+                        class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-200">
+                    ${confirmText}
+                </button>
+            `;
+            modal.classList.remove('hidden');
+        }
+
+        // Führt die gespeicherte Bestätigungsaktion aus
+        window.executeConfirmAction = function() {
+            if (pendingConfirmAction) {
+                pendingConfirmAction();
+            }
+            closeCustomMessageModal();
+        }
+
+        // Schließt das Alert/Confirm Modal
+        window.closeCustomMessageModal = function() {
+            document.getElementById('customMessageModal').classList.add('hidden');
+            pendingConfirmAction = null; 
+        }
+
+        // --- Local Storage Logik ---
+        
+        // Speichert die aktuellen Daten in LocalStorage
+        function saveData() {
+            try {
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(equipmentData));
+            } catch (e) {
+                console.error("Fehler beim Speichern in LocalStorage:", e);
+                showCustomAlert("Speicherfehler", "Daten konnten nicht gespeichert werden.");
+            }
+        }
+
+        // Lädt die Daten aus LocalStorage
+        function loadDataFromLocalStorage() {
+            try {
+                const storedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+                if (storedData) {
+                    const parsedData = JSON.parse(storedData);
+                    // Sicherstellen, dass die Daten ein gültiges Array sind.
+                    if (Array.isArray(parsedData)) {
+                        equipmentData = parsedData;
+                    } else {
+                        // Wenn ungültig, starte mit leeren Initialdaten.
+                        console.log("LocalStorage Daten ungültig. Initialisiere leere Daten.");
+                        equipmentData = createInitialData(); 
+                        saveData();
+                    }
+                } else {
+                    // Wenn keine Daten gefunden, starte mit leeren Initialdaten.
+                    console.log("Keine Daten in LocalStorage gefunden. Initialisiere leere Daten.");
+                    equipmentData = createInitialData(); 
+                    saveData(); 
+                }
+            } catch (e) {
+                console.error("Fehler beim Laden aus LocalStorage. Initialisiere leere Daten:", e);
+                equipmentData = createInitialData(); // Fallback auf leeres Array bei Fehler
+            }
+            renderEquipment();
+        }
+
+        // --- Interaktions-Funktionen (Global verfügbar machen) ---
+        
+        // Fügt ein neues Gerät hinzu und öffnet das Modal
+        window.addEquipment = function() {
+            const newId = getNextId();
+            const newEquipment = {
+                id: newId,
+                name: `Neues Gerät ${newId}`,
+                weight: 0,
+                settings: '',
+                done: false,
+            };
+
+            equipmentData.push(newEquipment);
+            
+            // Speichern und Rendern
+            saveData();
+            renderEquipment();
+            
+            // Sofort das Modal öffnen, um die Eingabe zu ermöglichen
+            window.openEditModal(newId);
+        }
+
+        // Schaltet den 'done'-Status eines Geräts um
+        window.toggleDone = function(id) {
+            const item = equipmentData.find(e => e.id === id);
+            if (item) {
+                item.done = !item.done;
+                saveData(); 
+                renderEquipment(); 
+            }
+        }
+
+        // Handler für die Reset-Bestätigung (ersetzt confirm())
+        window.handleResetConfirmation = function() {
+            showCustomConfirm(
+                "Zurücksetzen bestätigen",
+                "Sind Sie sicher, dass Sie alle erledigten Markierungen zurücksetzen möchten?",
+                resetAllDoneStatus,
+                "Zurücksetzen"
+            );
+        }
+
+        // Setzt den 'done'-Status aller Geräte zurück
+        function resetAllDoneStatus() {
+            equipmentData = equipmentData.map(item => ({
+                ...item,
+                done: false
+            }));
+            
+            renderEquipment(); // Alle Geräte erscheinen wieder
+            saveData(); 
+        }
+
+        // Handler für die Löschen-Bestätigung (ersetzt confirm())
+        window.handleDeleteConfirmation = function() {
+            // selectedEquipmentId ist hier noch gültig
+            if (selectedEquipmentId === null) {
+                 closeEditModal();
+                 return;
+            }
+            
+            const itemToDelete = equipmentData.find(e => e.id === selectedEquipmentId);
+            const itemName = itemToDelete ? itemToDelete.name : 'dieses Gerät';
+
+            showCustomConfirm(
+                "Gerät löschen",
+                `Sind Sie sicher, dass Sie "${itemName}" endgültig löschen möchten?`,
+                deleteEquipment,
+                "Löschen"
+            );
+        }
+        
+        // Lösct das aktuell ausgewählte Gerät (wird von executeConfirmAction aufgerufen)
+        function deleteEquipment() {
+            // selectedEquipmentId wird HIER verwendet und ist noch gültig
+            if (selectedEquipmentId === null) return;
+            
+            // Filtere das Element aus dem Array heraus
+            equipmentData = equipmentData.filter(e => e.id !== selectedEquipmentId);
+            
+            renderEquipment(); 
+            saveData(); 
+            
+            // Schließe das Modal und setze die ID zurück, nachdem das Löschen erfolgreich war.
+            closeEditModal(); 
+        }
+
+        // Öffnet das Bearbeitungs-Modal
+        window.openEditModal = function(id) {
+            selectedEquipmentId = id;
+            const item = equipmentData.find(e => e.id === id);
+
+            if (item) {
+                // Titel des Modals anpassen: zeigt die ID des Geräts an
+                document.getElementById('modalTitle').textContent = `Gerät ${item.id} bearbeiten`; 
+                document.getElementById('nameInput').value = item.name;
+                document.getElementById('weightInput').value = item.weight > 0 ? item.weight : '';
+                document.getElementById('settingsInput').value = item.settings;
+                document.getElementById('editModal').classList.remove('hidden');
+                document.getElementById('nameInput').focus(); 
+            }
+        }
+
+        // Schließt das Bearbeitungs-Modal
+        window.closeEditModal = function() {
+            document.getElementById('editModal').classList.add('hidden');
+            selectedEquipmentId = null;
+        }
+
+        // Speichert die Änderungen aus dem Modal
+        window.saveChanges = function() {
+            if (selectedEquipmentId === null) return;
+
+            const name = document.getElementById('nameInput').value.trim(); 
+            const weight = parseInt(document.getElementById('weightInput').value) || 0;
+            const settings = document.getElementById('settingsInput').value.trim();
+
+            const item = equipmentData.find(e => e.id === selectedEquipmentId);
+
+            if (item) {
+                // Name ist Pflicht, fallback auf Standardname, falls leer
+                item.name = name || `Gerät ${item.id}`; 
+                item.weight = weight;
+                item.settings = settings;
+                
+                renderEquipment(); 
+                saveData(); 
+                closeEditModal();
+            }
+        }
+        
+        // --- CSV Import/Export Logik ---
+
+        // Konvertiert die aktuellen Daten in einen CSV-String
+        window.convertToCsv = function(data) {
+            if (data.length === 0) return '';
+            
+            // Definiere die Header-Reihenfolge
+            const headers = ['id', 'name', 'weight', 'settings', 'done'];
+            const csvRows = [];
+
+            // 1. Header hinzufügen
+            csvRows.push(headers.join(';'));
+
+            // 2. Daten hinzufügen
+            for (const item of data) {
+                const values = headers.map(header => {
+                    const value = item[header];
+                    // Werte in Anführungszeichen setzen und Semikolons entkommen
+                    return `"${(value + '').replace(/"/g, '""')}"`;
+                });
+                csvRows.push(values.join(';'));
+            }
+
+            return csvRows.join('\n');
+        }
+
+        // Exportiert die Daten als CSV-Datei
+        window.exportToCsv = function() {
+            const csvContent = convertToCsv(equipmentData);
+            if (!csvContent) {
+                showCustomAlert("Export fehlgeschlagen", "Keine Daten zum Exportieren vorhanden.");
+                return;
+            }
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'gym_tracker_export.csv');
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showCustomAlert("Export erfolgreich", "Die Daten wurden als 'gym_tracker_export.csv' heruntergeladen.");
+        }
+        
+        // Importiert Daten aus einer CSV-Datei
+        window.importFromCsv = function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const csvText = e.target.result;
+                try {
+                    const importedData = parseCsv(csvText);
+                    if (importedData.length === 0) {
+                        showCustomAlert("Import fehlgeschlagen", "Die Datei enthält keine gültigen Gerätedaten.");
+                        return;
+                    }
+                    
+                    // Zeige Bestätigung mit der Anzahl der importierten Geräte
+                    showCustomConfirm(
+                        "Import bestätigen",
+                        `Möchten Sie ${importedData.length} Geräte aus der Datei importieren? Dies wird die aktuelle Liste ersetzen!`,
+                        () => processImport(importedData),
+                        "Importieren"
+                    );
+
+                } catch (error) {
+                    showCustomAlert('Fehler beim Parsen', 'Fehler beim Parsen der CSV-Datei. Bitte überprüfen Sie das Format.');
+                    console.error('CSV Parsing Error:', error);
+                }
+                // Eingabefeld zurücksetzen, damit die gleiche Datei erneut importiert werden kann
+                event.target.value = null;
+            };
+            reader.readAsText(file);
+        }
+        
+        // Verarbeitet die importierten Daten nach Bestätigung
+        function processImport(importedData) {
+             let nextId = getNextId();
+                        
+            const newEquipmentData = importedData.map(item => {
+                const newItem = {
+                    // Verwende die importierte ID oder weise eine neue zu
+                    id: parseInt(item.id) || nextId++, 
+                    name: item.name || `Importiertes Gerät ${nextId - 1}`,
+                    weight: parseInt(item.weight) || 0,
+                    settings: item.settings || '',
+                    done: item.done === 'true' || item.done === true, // Konvertiere string 'true' zu boolean true
+                };
+                return newItem;
+            });
+
+            equipmentData = newEquipmentData;
+            saveData();
+            renderEquipment();
+            showCustomAlert('Import erfolgreich', `Erfolgreich ${importedData.length} Geräte importiert.`);
+        }
+        
+        // Hilfsfunktion zum Parsen des CSV-Strings
+        function parseCsv(csvText) {
+            const lines = csvText.split('\n').filter(line => line.trim() !== '');
+            if (lines.length < 1) return [];
+
+            // Header-Zeile mit ; splitten
+            const headers = lines[0].split(';').map(h => h.trim().toLowerCase().replace(/"/g, ''));
+            const data = [];
+
+            for (let i = 1; i < lines.length; i++) {
+                // Regex, um Werte in Anführungszeichen (mit Semikolons) korrekt zu erfassen
+                // Dies ist eine sehr vereinfachte CSV-Parsing-Methode
+                const values = lines[i].match(/(".*?"|[^;]+)(;|$)/g);
+                if (!values) continue; 
+
+                const cleanValues = values.map(v => 
+                    v.replace(/;$/, '').replace(/^"(.*)"$/, '$1').trim().replace(/""/g, '"')
+                );
+                
+                const item = {};
+                headers.forEach((header, index) => {
+                    if (cleanValues[index] !== undefined) {
+                        item[header] = cleanValues[index];
+                    }
+                });
+                data.push(item);
+            }
+            return data;
+        }
+
+        // --- Initialisierung ---
+        // Die App startet sofort, indem sie Daten aus LocalStorage lädt oder initialisiert
+        window.onload = loadDataFromLocalStorage;
+
+    </script>
+</body>
+</html>
